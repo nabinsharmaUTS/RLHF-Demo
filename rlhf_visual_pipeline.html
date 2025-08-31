@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLHF Visual Pipeline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            overflow-x: auto;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .pipeline-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .stage {
+            display: flex;
+            align-items: center;
+            margin-bottom: 40px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #4CAF50;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .stage:hover {
+            transform: translateX(10px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .stage.active {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-left-color: #2196F3;
+            transform: scale(1.02);
+        }
+
+        .stage-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-right: 25px;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .stage.active .stage-number {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .stage-content {
+            flex: 1;
+        }
+
+        .stage-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .stage-description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .stage-details {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px dashed #e0e0e0;
+            margin-top: 15px;
+        }
+
+        .example-box {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .input-example {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+        }
+
+        .output-example {
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .comparison-example {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .arrow {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 2rem;
+            color: #666;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .progress-bar {
+            background: #e0e0e0;
+            height: 8px;
+            border-radius: 4px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            height: 100%;
+            width: 0%;
+            transition: width 1s ease;
+            border-radius: 4px;
+        }
+
+        .metrics {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            flex: 1;
+            margin: 0 10px;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2196F3;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .visual-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        .flow-item {
+            text-align: center;
+            flex: 1;
+            padding: 10px;
+        }
+
+        .flow-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 10px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .flow-arrow {
+            font-size: 2rem;
+            color: #666;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .comparison-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .score-before {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .score-after {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stage {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .stage-number {
+                margin-right: 0;
+                margin-bottom: 15px;
+            }
+            
+            .visual-flow {
+                flex-direction: column;
+            }
+            
+            .flow-arrow {
+                transform: rotate(90deg);
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 RLHF Visual Pipeline</h1>
+            <p>Interactive demonstration of Reinforcement Learning from Human Feedback</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="startDemo()">▶️ Start Demo</button>
+            <button class="btn" onclick="resetDemo()">🔄 Reset</button>
+            <button class="btn" onclick="skipToEnd()">⏭️ Skip to Results</button>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div class="pipeline-container">
+            <!-- Stage 0: Problem Setup -->
+            <div class="stage" id="stage0">
+                <div class="stage-number">🎯</div>
+                <div class="stage-content">
+                    <div class="stage-title">The Problem: Misaligned AI</div>
+                    <div class="stage-description">
+                        Traditional language models predict the next word based on internet text, but this doesn't make them helpful, harmless, or honest.
+                    </div>
+                    <div class="stage-details hidden" id="details0">
+                        <div class="visual-flow">
+                            <div class="flow-item">
+                                <div class="flow-icon">🌐</div>
+                                <div>Internet Data</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">🤖</div>
+                                <div>AI Model</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">❌</div>
+                                <div>Unhelpful Output</div>
+                            </div>
+                        </div>
+                        <div class="example-box input-example">
+                            <strong>Human:</strong> "How do I write better code?"
+                        </div>
+                        <div class="example-box comparison-example">
+                            <strong>Untrained AI:</strong> "Use lots of comments and make variables really long names like 'thisIsMyVeryLongVariableNameThatExplainsEverything'"
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow hidden" id="arrow0">↓</div>
+
+            <!-- Stage 1: Supervised Fine-Tuning -->
+            <div class="stage" id="stage1">
+                <div class="stage-number">1</div>
+                <div class="stage-content">
+                    <div class="stage-title">Supervised Fine-Tuning (SFT)</div>
+                    <div class="stage-description">
+                        Train the model on high-quality examples of helpful responses written by humans.
+                    </div>
+                    <div class="stage-details hidden" id="details1">
+                        <div class="visual-flow">
+                            <div class="flow-item">
+                                <div class="flow-icon">📝</div>
+                                <div>Expert Examples</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">🎓</div>
+                                <div>Fine-tune Model</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">✅</div>
+                                <div>Better Responses</div>
+                            </div>
+                        </div>
+                        <div class="example-box input-example">
+                            <strong>Training Example:</strong><br>
+                            Human: "How do I write better code?"<br>
+                            Expert: "Focus on readability, write tests, use meaningful variable names, follow consistent style, and refactor regularly."
+                        </div>
+                        <div class="example-box output-example">
+                            <strong>SFT Model Output:</strong> "To write better code: 1) Use clear variable names, 2) Write unit tests, 3) Follow coding standards, 4) Comment complex logic, 5) Refactor when needed."
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow hidden" id="arrow1">↓</div>
+
+            <!-- Stage 2: Reward Model Training -->
+            <div class="stage" id="stage2">
+                <div class="stage-number">2</div>
+                <div class="stage-content">
+                    <div class="stage-title">Reward Model Training</div>
+                    <div class="stage-description">
+                        Train a separate model to predict human preferences by comparing pairs of responses.
+                    </div>
+                    <div class="stage-details hidden" id="details2">
+                        <div class="visual-flow">
+                            <div class="flow-item">
+                                <div class="flow-icon">⚖️</div>
+                                <div>Human Comparisons</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">🧠</div>
+                                <div>Reward Model</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">📊</div>
+                                <div>Quality Scores</div>
+                            </div>
+                        </div>
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Response A</th>
+                                    <th>Response B</th>
+                                    <th>Human Preference</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>"Code should be clean and readable with proper documentation"</td>
+                                    <td>"Just make it work, doesn't matter how"</td>
+                                    <td>✅ Prefers A</td>
+                                </tr>
+                                <tr>
+                                    <td>"Use meaningful names: getUserData() vs getData()"</td>
+                                    <td>"Names don't matter much"</td>
+                                    <td>✅ Prefers A</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow hidden" id="arrow2">↓</div>
+
+            <!-- Stage 3: PPO Training -->
+            <div class="stage" id="stage3">
+                <div class="stage-number">3</div>
+                <div class="stage-content">
+                    <div class="stage-title">PPO Optimization</div>
+                    <div class="stage-description">
+                        Use Proximal Policy Optimization to train the model to generate responses that score higher on the reward model.
+                    </div>
+                    <div class="stage-details hidden" id="details3">
+                        <div class="visual-flow">
+                            <div class="flow-item">
+                                <div class="flow-icon">🔄</div>
+                                <div>Generate Response</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">📈</div>
+                                <div>Get Reward Score</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="flow-item">
+                                <div class="flow-icon">⚡</div>
+                                <div>Update Model</div>
+                            </div>
+                        </div>
+                        <div class="metrics">
+                            <div class="metric">
+                                <div class="metric-value" id="iteration">0</div>
+                                <div class="metric-label">Training Iterations</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value" id="rewardScore">3.2</div>
+                                <div class="metric-label">Average Reward</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value" id="improvement">0%</div>
+                                <div class="metric-label">Improvement</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow hidden" id="arrow3">↓</div>
+
+            <!-- Stage 4: Results -->
+            <div class="stage" id="stage4">
+                <div class="stage-number">🎉</div>
+                <div class="stage-content">
+                    <div class="stage-title">RLHF Results</div>
+                    <div class="stage-description">
+                        The model now generates responses that better align with human preferences - more helpful, harmless, and honest.
+                    </div>
+                    <div class="stage-details hidden" id="details4">
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Aspect</th>
+                                    <th>Before RLHF</th>
+                                    <th>After RLHF</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Helpfulness</strong></td>
+                                    <td><span class="score-before">4.2/10</span></td>
+                                    <td><span class="score-after">8.7/10</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Relevance</strong></td>
+                                    <td><span class="score-before">5.1/10</span></td>
+                                    <td><span class="score-after">9.1/10</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Safety</strong></td>
+                                    <td><span class="score-before">6.0/10</span></td>
+                                    <td><span class="score-after">9.5/10</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="example-box input-example">
+                            <strong>Human:</strong> "How do I write better code?"
+                        </div>
+                        <div class="example-box output-example">
+                            <strong>RLHF Model:</strong> "Here are evidence-based practices for better code:<br>
+                            1. <strong>Readability:</strong> Use clear names (getUserById vs getUsrData)<br>
+                            2. <strong>Testing:</strong> Write unit tests for critical functions<br>
+                            3. <strong>Structure:</strong> Follow SOLID principles and design patterns<br>
+                            4. <strong>Documentation:</strong> Comment complex logic, not obvious code<br>
+                            5. <strong>Refactoring:</strong> Regularly improve code organization<br>
+                            Would you like me to elaborate on any of these areas?"
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStage = -1;
+        let isAnimating = false;
+
+        function showStage(stageIndex) {
+            if (isAnimating) return;
+            
+            // Remove active class from all stages
+            document.querySelectorAll('.stage').forEach(stage => {
+                stage.classList.remove('active');
+            });
+
+            // Add active class to current stage
+            const stage = document.getElementById(`stage${stageIndex}`);
+            if (stage) {
+                stage.classList.add('active');
+                
+                // Show stage details
+                const details = document.getElementById(`details${stageIndex}`);
+                if (details) {
+                    details.classList.remove('hidden');
+                }
+
+                // Show arrow to next stage
+                const arrow = document.getElementById(`arrow${stageIndex}`);
+                if (arrow) {
+                    arrow.classList.remove('hidden');
+                }
+            }
+
+            currentStage = stageIndex;
+            updateProgress();
+
+            // Animate PPO metrics
+            if (stageIndex === 3) {
+                animatePPOMetrics();
+            }
+        }
+
+        function updateProgress() {
+            const progressFill = document.getElementById('progressFill');
+            const progress = ((currentStage + 1) / 5) * 100;
+            progressFill.style.width = `${progress}%`;
+        }
+
+        function animatePPOMetrics() {
+            const iterationEl = document.getElementById('iteration');
+            const rewardScoreEl = document.getElementById('rewardScore');
+            const improvementEl = document.getElementById('improvement');
+
+            let iteration = 0;
+            let reward = 3.2;
+            const targetIteration = 150;
+            const targetReward = 7.8;
+
+            const interval = setInterval(() => {
+                iteration += 5;
+                reward += 0.15;
+
+                if (iteration >= targetIteration) {
+                    iteration = targetIteration;
+                    reward = targetReward;
+                    clearInterval(interval);
+                }
+
+                const improvement = Math.round(((reward - 3.2) / 3.2) * 100);
+
+                iterationEl.textContent = iteration;
+                rewardScoreEl.textContent = reward.toFixed(1);
+                improvementEl.textContent = `${improvement}%`;
+            }, 100);
+        }
+
+        function startDemo() {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            currentStage = -1;
+            resetDemo();
+
+            const stages = [0, 1, 2, 3, 4];
+            let stageIndex = 0;
+
+            function showNextStage() {
+                if (stageIndex < stages.length) {
+                    showStage(stages[stageIndex]);
+                    stageIndex++;
+                    setTimeout(showNextStage, 3000); // 3 second delay between stages
+                } else {
+                    isAnimating = false;
+                }
+            }
+
+            showNextStage();
+        }
+
+        function resetDemo() {
+            currentStage = -1;
+            isAnimating = false;
+
+            // Hide all details and arrows
+            document.querySelectorAll('.stage-details, .arrow').forEach(element => {
+                element.classList.add('hidden');
+            });
+
+            // Remove active classes
+            document.querySelectorAll('.stage').forEach(stage => {
+                stage.classList.remove('active');
+            });
+
+            // Reset progress
+            document.getElementById('progressFill').style.width = '0%';
+
+            // Reset metrics
+            document.getElementById('iteration').textContent = '0';
+            document.getElementById('rewardScore').textContent = '3.2';
+            document.getElementById('improvement').textContent = '0%';
+        }
+
+        function skipToEnd() {
+            resetDemo();
+            showStage(0);
+            showStage(1);
+            showStage(2);
+            showStage(3);
+            showStage(4);
+            isAnimating = false;
+        }
+
+        // Allow clicking on stages to jump to them
+        document.querySelectorAll('.stage').forEach((stage, index) => {
+            stage.addEventListener('click', () => {
+                if (!isAnimating) {
+                    showStage(index);
+                }
+            });
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            resetDemo();
+        });
+    </script>
+</body>
+</html>
